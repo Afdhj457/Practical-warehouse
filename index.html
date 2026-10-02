@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JS 文件下载器 · 支持 three.js</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+  body {
+    min-height:100vh; display:flex; align-items:center; justify-content:center;
+    background:linear-gradient(145deg,#0f2027,#203a43,#2c5364); padding:1.5rem;
+  }
+  .card {
+    width:100%; max-width:760px; background:rgba(255,255,255,.06);
+    backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+    border:1px solid rgba(255,255,255,.15); border-radius:2rem;
+    padding:2.2rem 1.8rem; box-shadow:0 25px 50px -12px rgba(0,0,0,.6);
+    color:#e6f1ff;
+  }
+  h1 { font-size:1.7rem; font-weight:600; display:flex; align-items:center; gap:.6rem; margin-bottom:.4rem; }
+  h1 .icon { font-size:1.9rem; }
+  .sub { color:#8fb3cc; font-size:.92rem; margin-bottom:1.8rem; padding-left:.2rem; }
+
+  /* three.js 专区 */
+  .three-section {
+    background:rgba(247,223,30,.08); border:1px solid rgba(247,223,30,.3);
+    border-radius:1.3rem; padding:1.2rem 1.3rem; margin-bottom:1.5rem;
+  }
+  .three-header {
+    display:flex; align-items:center; gap:.6rem; margin-bottom:.9rem;
+    font-weight:600; font-size:1.05rem; color:#f7df1e;
+  }
+  .three-header .logo {
+    background:#f7df1e; color:#000; font-weight:700; font-size:.75rem;
+    padding:.25rem .5rem; border-radius:.4rem; font-family:monospace;
+  }
+  .three-row {
+    display:flex; gap:.6rem; flex-wrap:wrap; align-items:center;
+  }
+  .three-row select {
+    flex:1 1 130px; padding:.6rem 1rem; border-radius:2rem; border:1px solid rgba(255,255,255,.2);
+    background:rgba(0,0,0,.25); color:#e6f1ff; font-size:.85rem; outline:none; cursor:pointer;
+  }
+  .three-row select:focus { border-color:#f7df1e; }
+  .three-row select option { background:#1a2a3a; color:#e6f1ff; }
+
+  .file-list { display:flex; flex-direction:column; gap:.8rem; }
+  .file-item {
+    display:flex; align-items:center; justify-content:space-between; gap:1rem;
+    background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1);
+    border-radius:1.2rem; padding:1rem 1.2rem; transition:all .2s ease;
+    flex-wrap:wrap;
+  }
+  .file-item:hover { background:rgba(255,255,255,.1); border-color:rgba(100,200,255,.4); transform:translateY(-2px); }
+  .file-info { display:flex; align-items:center; gap:.8rem; min-width:0; flex:1 1 200px; }
+  .file-info .js-icon {
+    font-size:1.1rem; background:#f7df1e; color:#000; font-weight:700;
+    padding:.25rem .5rem; border-radius:.5rem; font-family:monospace; flex-shrink:0;
+  }
+  .file-name { font-size:.95rem; font-weight:500; word-break:break-all; }
+  .file-size { font-size:.78rem; color:#7fa8c9; margin-top:.15rem; }
+  .btn-group { display:flex; gap:.5rem; flex-shrink:0; flex-wrap:wrap; }
+  .btn {
+    border:none; color:#fff; padding:.6rem 1.1rem; border-radius:2rem;
+    font-size:.85rem; font-weight:600; cursor:pointer; display:inline-flex;
+    align-items:center; gap:.35rem; transition:all .15s ease; white-space:nowrap;
+  }
+  .btn-dl {
+    background:linear-gradient(135deg,#00b4db,#0083b0);
+    box-shadow:0 6px 14px rgba(0,150,200,.35);
+  }
+  .btn-dl:hover { filter:brightness(1.15); box-shadow:0 8px 20px rgba(0,180,219,.5); }
+  .btn-copy {
+    background:linear-gradient(135deg,#8e2de2,#4a00e0);
+    box-shadow:0 6px 14px rgba(120,40,220,.35);
+  }
+  .btn-copy:hover { filter:brightness(1.15); box-shadow:0 8px 20px rgba(140,60,240,.5); }
+  .btn:active { transform:scale(.96); }
+  .btn:disabled { opacity:.6; cursor:not-allowed; transform:none; }
+  .btn.done { background:linear-gradient(135deg,#11998e,#38ef7d); }
+  .btn.ready { background:linear-gradient(135deg,#f7971e,#ffd200); color:#000; }
+  .footer-note {
+    margin-top:1.6rem; font-size:.8rem; color:#6f92ad; text-align:center;
+    border-top:1px dashed rgba(255,255,255,.12); padding-top:1.1rem;
+  }
+  .empty-tip { color:#7fa8c9; font-size:.9rem; text-align:center; padding:2rem 0; }
+
+  .toast {
+    position:fixed; left:50%; bottom:2rem; transform:translateX(-50%) translateY(100px);
+    background:rgba(30,50,70,.95); color:#fff; padding:.8rem 1.5rem;
+    border-radius:2rem; font-size:.9rem; box-shadow:0 10px 30px rgba(0,0,0,.4);
+    border:1px solid rgba(100,200,255,.3); opacity:0; transition:all .3s ease;
+    pointer-events:none; z-index:9999; backdrop-filter:blur(8px);
+    max-width:90vw; text-align:center;
+  }
+  .toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+
+  /* 手动复制面板 */
+  .copy-overlay {
+    position:fixed; inset:0; background:rgba(0,0,0,.75);
+    z-index:10000; display:flex; align-items:center; justify-content:center;
+    padding:1rem;
+  }
+  .copy-box {
+    background:#1a2a3a; border-radius:1.2rem; padding:1.2rem;
+    width:100%; max-width:640px; max-height:86vh;
+    display:flex; flex-direction:column; gap:.8rem;
+    border:1px solid rgba(100,200,255,.4);
+    box-shadow:0 30px 60px rgba(0,0,0,.6);
+  }
+  .copy-box h3 {
+    color:#8fb3cc; font-size:.95rem; font-weight:600;
+    display:flex; align-items:center; gap:.4rem;
+  }
+  .copy-box .hint {
+    color:#ffc466; font-size:.8rem; line-height:1.5;
+    background:rgba(255,140,0,.1); border:1px solid rgba(255,140,0,.3);
+    border-radius:.6rem; padding:.5rem .8rem;
+  }
+  .copy-box textarea {
+    width:100%; flex:1; min-height:180px;
+    background:#0f2027; color:#e6f1ff;
+    border:1px solid rgba(255,255,255,.2); border-radius:.6rem;
+    padding:.8rem; font-family:monospace; font-size:.8rem;
+    resize:vertical; outline:none; line-height:1.4;
+    -webkit-user-select:text; user-select:text;
+  }
+  .copy-box textarea:focus { border-color:#00b4db; }
+  .copy-actions {
+    display:flex; gap:.6rem; justify-content:flex-end; flex-wrap:wrap;
+  }
+  .copy-actions .btn { padding:.7rem 1.3rem; }
+  .btn-select { background:linear-gradient(135deg,#f7971e,#ffd200); color:#000; }
+  .btn-try { background:linear-gradient(135deg,#11998e,#38ef7d); }
+  .btn-close { background:rgba(255,255,255,.15); }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1><span class="icon">📦</span> JS 文件下载器</h1>
+  <div class="sub">下载内置 JS · 在线下载 three.js · 复制 Base64</div>
+
+  <!-- three.js 在线下载专区 -->
+  <div class="three-section">
+    <div class="three-header">
+      <span class="logo">3JS</span> 在线下载 three.js
+    </div>
+    <div class="three-row">
+      <select id="threeVersion">
+        <option value="0.186.0">r186 (ESM 模块)</option>
+        <option value="0.185.0">r185 (ESM 模块)</option>
+        <option value="0.180.0">r180 (ESM 模块)</option>
+        <option value="0.175.0">r175 (ESM 模块)</option>
+        <option value="0.170.0">r170 (ESM 模块)</option>
+        <option value="0.168.0">r168 (ESM 模块)</option>
+        <option value="0.160.0">r160 (ESM 模块)</option>
+        <option value="0.157.0">r157 (ESM 模块)</option>
+        <option value="0.155.0">r155 (ESM 模块)</option>
+        <option value="0.150.0">r150 (ESM 模块)</option>
+        <option value="0.145.0">r145 (经典 min)</option>
+        <option value="0.140.0">r140 (经典 min)</option>
+        <option value="0.135.0">r135 (经典 min)</option>
+        <option value="0.130.0">r130 (经典 min)</option>
+        <option value="0.128.0">r128 (经典 min)</option>
+        <option value="0.125.0">r125 (经典 min)</option>
+        <option value="0.120.0">r120 (经典 min)</option>
+        <option value="0.110.0">r110 (经典 min)</option>
+        <option value="0.100.0">r100 (经典 min)</option>
+        <option value="0.86.0">r86 (经典 min)</option>
+        <option value="0.83.0">r83 (经典 min)</option>
+        <option value="0.73.0">r73 (npm 最早规范版)</option>
+      </select>
+      <select id="cdnSource" style="flex:0 1 120px;">
+        <option value="auto">自动</option>
+        <option value="jsdelivr">jsDelivr</option>
+        <option value="unpkg">unpkg</option>
+        <option value="esmsh">esm.sh</option>
+      </select>
+    </div>
+
+    <div class="three-row" style="margin-top:.6rem;">
+      <button class="btn btn-dl" id="downloadThreeBtn">
+        <span>⬇</span> 下载 three.js
+      </button>
+      <button class="btn btn-copy" id="copyThreeBtn">
+        <span>📋</span> 复制 Base64
+      </button>
+    </div>
+  </div>
+
+  <div class="file-list" id="fileList"></div>
+
+  <div class="footer-note">
+    下载自动保存为 .js 文件 · Base64 为文件内容的编码
+  </div>
+</div>
+
+<div class="toast" id="toast">已复制到剪贴板</div>
+
+<script>
+  // ============================================================
+  // 内置 JS 文件列表（小文件）
+  // ============================================================
+  const JS_FILES = [
+    {
+      name: 'hello.js',
+      content: `// hello.js
+console.log('Hello, World!');
+
+function greet(name) {
+  return '你好，' + name + '！';
+}
+
+console.log(greet('开发者'));
+`
+    },
+    {
+      name: 'utils.js',
+      content: `// utils.js —— 常用工具函数
+export function formatDate(date) {
+  const d = new Date(date);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return \`\${y}-\${m}-\${day}\`;
+}
+
+export function debounce(fn, delay = 300) {
+  let timer = null;
+  return function (...args) {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn.apply(this, args), delay);
+  };
+}
+
+export const sum = (...nums) => nums.reduce((a, b) => a + b, 0);
+`
+    },
+    {
+      name: 'counter.js',
+      content: `// counter.js —— 简单计数器
+let count = 0;
+
+export function increment() { return ++count; }
+export function decrement() { return --count; }
+export function getCount() { return count; }
+export function reset() { count = 0; }
+`
+    }
+  ];
+
+  // ============================================================
+  // three.js 多 CDN 配置
+  // ============================================================
+  const CDN_SOURCES = {
+    jsdelivr: {
+      name: 'jsDelivr',
+      classic: (v) => `https://cdn.jsdelivr.net/npm/three@${v}/build/three.min.js`,
+      esm: (v) => `https://cdn.jsdelivr.net/npm/three@${v}/build/three.module.js`
+    },
+    unpkg: {
+      name: 'unpkg',
+      classic: (v) => `https://unpkg.com/three@${v}/build/three.min.js`,
+      esm: (v) => `https://unpkg.com/three@${v}/build/three.module.js`
+    },
+    esmsh: {
+      name: 'esm.sh',
+      classic: (v) => `https://esm.sh/three@${v}`,
+      esm: (v) => `https://esm.sh/three@${v}`
+    }
+  };
+
+  function isEsmVersion(version) {
+    const minor = parseInt(version.split('.')[1], 10);
+    return minor >= 150;
+  }
+
+  function getThreeUrl(version, cdnKey) {
+    const cdn = CDN_SOURCES[cdnKey];
+    if (isEsmVersion(version)) {
+      return { url: cdn.esm(version), fileName: `three.module-${version}.js` };
+    } else {
+      return { url: cdn.classic(version), fileName: `three.min-${version}.js` };
+    }
+  }
+
+  const AUTO_ORDER = ['jsdelivr', 'unpkg', 'esmsh'];
+
+  // ============================================================
+  // 工具函数
+  // ============================================================
+  function formatBytes(bytes) {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return (bytes / Math.pow(k, i)).toFixed(1) + ' ' + sizes[i];
+  }
+
+  function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, s => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;',
+      '"': '&quot;', "'": '&#39;'
+    }[s]));
+  }
+
+  function strToBase64(str) {
+    const utf8Bytes = new TextEncoder().encode(str);
+    let binary = '';
+    utf8Bytes.forEach(b => binary += String.fromCharCode(b));
+    return btoa(binary);
+  }
+
+  let toastTimer = null;
+  function showToast(msg) {
+    const toast = document.getElementById('toast');
+    toast.textContent = msg;
+    toast.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toast.classList.remove('show'), 3000);
+  }
+
+  // ============================================================
+  // 复制方案
+  // ============================================================
+  async function tryClipboardApi(str) {
+    if (navigator.clipboard && window.isSecureContext) {
+      try {
+        await navigator.clipboard.writeText(str);
+        return true;
+      } catch (e) {
+        console.warn('clipboard API 失败:', e);
+        return false;
+      }
+    }
+    return false;
+  }
+
+  function tryExecCommand(str) {
+    const ta = document.createElement('textarea');
+    ta.value = str;
+    ta.style.position = 'fixed';
+    ta.style.top = '0';
+    ta.style.left = '0';
+    ta.style.width = '2em';
+    ta.style.height = '2em';
+    ta.style.opacity = '0';
+    ta.style.zIndex = '-1';
+    ta.setAttribute('readonly', '');
+    ta.style.fontSize = '16px';
+    document.body.appendChild(ta);
+
+    let ok = false;
+    try {
+      ta.focus();
+      ta.select();
+      ta.setSelectionRange(0, ta.value.length);
+      ok = document.execCommand('copy');
+    } catch (e) {
+      console.warn('execCommand 失败:', e);
+      ok = false;
+    }
+    document.body.removeChild(ta);
+    return ok;
+  }
+
+  function showManualCopyPanel(str, sizeInfo) {
+    const old = document.getElementById('copyOverlay');
+    if (old) old.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'copyOverlay';
+    overlay.className = 'copy-overlay';
+
+    const box = document.createElement('div');
+    box.className = 'copy-box';
+
+    const title = document.createElement('h3');
+    title.innerHTML = '📋 复制 Base64 <span style="color:#7fa8c9;font-weight:400;font-size:.85rem;">' + (sizeInfo || '') + '</span>';
+
+    const hint = document.createElement('div');
+    hint.className = 'hint';
+    hint.innerHTML = '⚠️ 自动复制可能被 WebView 拦截。<br>请点击 <b>「全选」</b> 后长按文本框 → 选择 <b>「复制」</b>，或点击 <b>「尝试自动复制」</b>。';
+
+    const ta = document.createElement('textarea');
+    ta.value = str;
+    ta.readOnly = true;
+    ta.spellcheck = false;
+    ta.setAttribute('wrap', 'off');
+
+    const actions = document.createElement('div');
+    actions.className = 'copy-actions';
+
+    const selectBtn = document.createElement('button');
+    selectBtn.className = 'btn btn-select';
+    selectBtn.innerHTML = '🔍 全选';
+    selectBtn.onclick = () => {
+      ta.focus();
+      ta.select();
+      ta.setSelectionRange(0, ta.value.length);
+      showToast('已全选，请长按文本框复制');
+    };
+
+    const tryBtn = document.createElement('button');
+    tryBtn.className = 'btn btn-try';
+    tryBtn.innerHTML = '📋 尝试自动复制';
+    tryBtn.onclick = async () => {
+      const ok1 = await tryClipboardApi(str);
+      if (ok1) {
+        showToast('已复制到剪贴板');
+        tryBtn.innerHTML = '✅ 已复制';
+        return;
+      }
+      const ok2 = tryExecCommand(str);
+      if (ok2) {
+        showToast('已复制（execCommand）');
+        tryBtn.innerHTML = '✅ 已复制';
+      } else {
+        showToast('自动复制失败，请手动全选复制');
+      }
+    };
+
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'btn btn-close';
+    closeBtn.innerHTML = '关闭';
+    closeBtn.onclick = () => overlay.remove();
+
+    actions.appendChild(selectBtn);
+    actions.appendChild(tryBtn);
+    actions.appendChild(closeBtn);
+
+    box.appendChild(title);
+    box.appendChild(hint);
+    box.appendChild(ta);
+    box.appendChild(actions);
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+
+    setTimeout(() => {
+      ta.focus();
+      ta.select();
+      ta.setSelectionRange(0, ta.value.length);
+    }, 120);
+  }
+
+  async function copyWithFallback(str, sizeInfo) {
+    const ok1 = await tryClipboardApi(str);
+    if (ok1) return true;
+
+    const ok2 = tryExecCommand(str);
+    const isAndroidWebView = /Android/i.test(navigator.userAgent) && !/Chrome\/[6-9]/i.test(navigator.userAgent);
+    if (ok2 && !isAndroidWebView) {
+      return true;
+    }
+
+    showManualCopyPanel(str, sizeInfo);
+    return ok2;
+  }
+
+  // ============================================================
+  // 下载文本内容为 .js 文件
+  // ============================================================
+  function downloadTextAsJs(fileName, content) {
+    const blob = new Blob(['\uFEFF' + content], {
+      type: 'application/javascript;charset=utf-8'
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  // ============================================================
+  // 在线拉取 three.js（多 CDN 自动重试）
+  // ============================================================
+  async function fetchThreeJs(version, cdnKey) {
+    const order = cdnKey === 'auto' ? AUTO_ORDER : [cdnKey];
+    const errors = [];
+    for (const key of order) {
+      const { url, fileName } = getThreeUrl(version, key);
+      try {
+        const res = await fetch(url, { mode: 'cors' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const text = await res.text();
+        return { text, fileName, cdnUsed: CDN_SOURCES[key].name, cdnKey: key };
+      } catch (err) {
+        console.warn(`[${CDN_SOURCES[key].name}] 拉取失败:`, err.message);
+        errors.push(`${CDN_SOURCES[key].name}: ${err.message}`);
+      }
+    }
+    throw new Error('所有 CDN 均失败 — ' + errors.join(' / '));
+  }
+
+  // ============================================================
+  // 渲染内置文件列表
+  // ============================================================
+  const fileListEl = document.getElementById('fileList');
+
+  function renderFileList() {
+    if (!JS_FILES.length) {
+      fileListEl.innerHTML = '<div class="empty-tip">暂无 JS 文件</div>';
+      return;
+    }
+
+    fileListEl.innerHTML = JS_FILES.map((file, index) => {
+      const size = formatBytes(new Blob([file.content]).size);
+      return `
+        <div class="file-item">
+          <div class="file-info">
+            <span class="js-icon">JS</span>
+            <div>
+              <div class="file-name">${escapeHtml(file.name)}</div>
+              <div class="file-size">${size}</div>
+            </div>
+          </div>
+          <div class="btn-group">
+            <button class="btn btn-dl" data-index="${index}" data-action="download">
+              <span>⬇</span> 下载
+            </button>
+            <button class="btn btn-copy" data-index="${index}" data-action="copy">
+              <span>📋</span> 复制 Base64
+            </button>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    fileListEl.querySelectorAll('.btn').forEach(btn => {
+      btn.addEventListener('click', async function () {
+        const idx = Number(this.dataset.index);
+        const action = this.dataset.action;
+        const file = JS_FILES[idx];
+        if (!file) return;
+
+        if (action === 'download') {
+          downloadTextAsJs(file.name, file.content);
+          const original = this.innerHTML;
+          this.innerHTML = '<span>✅</span> 已下载';
+          this.classList.add('done');
+          this.disabled = true;
+          setTimeout(() => {
+            this.innerHTML = original;
+            this.classList.remove('done');
+            this.disabled = false;
+          }, 1500);
+        } else if (action === 'copy') {
+          const base64 = strToBase64(file.content);
+          const sizeInfo = formatBytes(base64.length);
+          const ok = await copyWithFallback(base64, sizeInfo);
+          if (ok) {
+            const original = this.innerHTML;
+            this.innerHTML = '<span>✅</span> 已复制';
+            this.classList.add('done');
+            this.disabled = true;
+            showToast(`已复制 Base64（${sizeInfo}）`);
+            setTimeout(() => {
+              this.innerHTML = original;
+              this.classList.remove('done');
+              this.disabled = false;
+            }, 1500);
+          }
+        }
+      });
+    });
+  }
+
+  // ============================================================
+  // three.js 下载 & 复制
+  // ============================================================
+  const versionSelect = document.getElementById('threeVersion');
+  const cdnSelect = document.getElementById('cdnSource');
+  const downloadThreeBtn = document.getElementById('downloadThreeBtn');
+  const copyThreeBtn = document.getElementById('copyThreeBtn');
+
+  const threeCache = {};
+
+  async function getThreeContent(version, cdnKey) {
+    const cacheKey = version + '@' + cdnKey;
+    if (threeCache[cacheKey]) return threeCache[cacheKey];
+    const result = await fetchThreeJs(version, cdnKey);
+    threeCache[cacheKey] = result;
+    return result;
+  }
+
+  // ------- 复制 three.js 的 Base64 -------
+  copyThreeBtn.addEventListener('click', async function () {
+    const version = versionSelect.value;
+    const cdnKey = cdnSelect.value;
+    const original = this.innerHTML;
+
+    this.innerHTML = '<span>⏳</span> 拉取中…';
+    this.disabled = true;
+
+    try {
+      const { text } = await getThreeContent(version, cdnKey);
+      const base64 = strToBase64(text);
+      const sizeInfo = formatBytes(base64.length);
+
+      this.innerHTML = '<span>⏳</span> 复制中…';
+      const ok = await copyWithFallback(base64, sizeInfo);
+
+      if (ok) {
+        this.innerHTML = '<span>✅</span> 已复制';
+        this.classList.add('done');
+        showToast(`已复制 Base64（${sizeInfo}）`);
+      } else {
+        this.innerHTML = original;
+      }
+
+      setTimeout(() => {
+        this.innerHTML = original;
+        this.classList.remove('done');
+        this.disabled = false;
+      }, 1800);
+
+    } catch (err) {
+      console.error(err);
+      this.innerHTML = original;
+      this.disabled = false;
+      showToast('拉取失败：' + err.message);
+    }
+  });
+
+  // ------- 下载 three.js -------
+  downloadThreeBtn.addEventListener('click', async function () {
+    const version = versionSelect.value;
+    const cdnKey = cdnSelect.value;
+    const original = this.innerHTML;
+
+    this.innerHTML = '<span>⏳</span> 拉取中…';
+    this.disabled = true;
+
+    try {
+      const { text, fileName, cdnUsed } = await getThreeContent(version, cdnKey);
+      downloadTextAsJs(fileName, text);
+
+      this.innerHTML = '<span>✅</span> 已下载';
+      showToast(`three.js ${version} 下载完成（${cdnUsed}，${formatBytes(text.length)}）`);
+
+      setTimeout(() => {
+        this.innerHTML = original;
+        this.disabled = false;
+      }, 2000);
+    } catch (err) {
+      console.error(err);
+      this.innerHTML = original;
+      this.disabled = false;
+      showToast('下载失败：' + err.message);
+    }
+  });
+
+  // 初始化
+  renderFileList();
+</script>
+</body>
+</html>
